@@ -20,6 +20,21 @@ Create the `kubernetes-the-hard-way` custom VPC network:
 gcloud compute networks create kubernetes-the-hard-way --subnet-mode custom
 ```
 
+Output:
+
+```
+Created [https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/global/networks/kubernetes-the-hard-way].
+NAME                     SUBNET_MODE  BGP_ROUTING_MODE  IPV4_RANGE  GATEWAY_IPV4
+kubernetes-the-hard-way  CUSTOM       REGIONAL
+
+Instances on this network will not be reachable until firewall rules
+are created. As an example, you can allow all internal traffic between
+instances as well as SSH, RDP, and ICMP by running:
+
+$ gcloud compute firewall-rules create <FIREWALL_NAME> --network kubernetes-the-hard-way --allow tcp,udp,icmp --source-ranges <IP_RANGE>
+$ gcloud compute firewall-rules create <FIREWALL_NAME> --network kubernetes-the-hard-way --allow tcp:22,tcp:3389,icmp
+```
+
 A [subnet](https://cloud.google.com/compute/docs/vpc/#vpc_networks_and_subnets) must be provisioned with an IP address range large enough to assign a private IP address to each node in the Kubernetes cluster.
 
 Create the `kubernetes` subnet in the `kubernetes-the-hard-way` VPC network:
@@ -28,6 +43,14 @@ Create the `kubernetes` subnet in the `kubernetes-the-hard-way` VPC network:
 gcloud compute networks subnets create kubernetes \
   --network kubernetes-the-hard-way \
   --range 10.240.0.0/24
+```
+
+> output
+
+```
+Created [https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/regions/europe-west4/subnetworks/kubernetes].
+NAME        REGION        NETWORK                  RANGE
+kubernetes  europe-west4  kubernetes-the-hard-way  10.240.0.0/24
 ```
 
 > The `10.240.0.0/24` IP address range can host up to 254 compute instances.
@@ -43,6 +66,15 @@ gcloud compute firewall-rules create kubernetes-the-hard-way-allow-internal \
   --source-ranges 10.240.0.0/24,10.200.0.0/16
 ```
 
+> output
+
+```
+Creating firewall...⠏Created [https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/global/firewalls/kubernetes-the-hard-way-allow-internal].                 
+Creating firewall...done.                                                                                                                                                
+NAME                                    NETWORK                  DIRECTION  PRIORITY  ALLOW         DENY  DISABLED
+kubernetes-the-hard-way-allow-internal  kubernetes-the-hard-way  INGRESS    1000      tcp,udp,icmp        False
+```
+
 Create a firewall rule that allows external SSH, ICMP, and HTTPS:
 
 ```
@@ -50,6 +82,15 @@ gcloud compute firewall-rules create kubernetes-the-hard-way-allow-external \
   --allow tcp:22,tcp:6443,icmp \
   --network kubernetes-the-hard-way \
   --source-ranges 0.0.0.0/0
+```
+
+> output
+
+```
+Creating firewall...⠏Created [https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/global/firewalls/kubernetes-the-hard-way-allow-external].                 
+Creating firewall...done.                                                                                                                                                
+NAME                                    NETWORK                  DIRECTION  PRIORITY  ALLOW                 DENY  DISABLED
+kubernetes-the-hard-way-allow-external  kubernetes-the-hard-way  INGRESS    1000      tcp:22,tcp:6443,icmp        False
 ```
 
 > An [external load balancer](https://cloud.google.com/compute/docs/load-balancing/network/) will be used to expose the Kubernetes API Servers to remote clients.
@@ -63,9 +104,9 @@ gcloud compute firewall-rules list --filter="network:kubernetes-the-hard-way"
 > output
 
 ```
-NAME                                    NETWORK                  DIRECTION  PRIORITY  ALLOW                 DENY
-kubernetes-the-hard-way-allow-external  kubernetes-the-hard-way  INGRESS    1000      tcp:22,tcp:6443,icmp
-kubernetes-the-hard-way-allow-internal  kubernetes-the-hard-way  INGRESS    1000      tcp,udp,icmp
+NAME                                    NETWORK                  DIRECTION  PRIORITY  ALLOW                 DENY  DISABLED
+kubernetes-the-hard-way-allow-external  kubernetes-the-hard-way  INGRESS    1000      tcp:22,tcp:6443,icmp        False
+kubernetes-the-hard-way-allow-internal  kubernetes-the-hard-way  INGRESS    1000      tcp,udp,icmp                False
 ```
 
 ### Kubernetes Public IP Address
@@ -75,6 +116,12 @@ Allocate a static IP address that will be attached to the external load balancer
 ```
 gcloud compute addresses create kubernetes-the-hard-way \
   --region $(gcloud config get-value compute/region)
+```
+> output
+
+```
+Your active configuration is: [k8s-the-hard-way]
+Created [https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/regions/europe-west4/addresses/kubernetes-the-hard-way].
 ```
 
 Verify the `kubernetes-the-hard-way` static IP address was created in your default compute region:
@@ -86,8 +133,8 @@ gcloud compute addresses list --filter="name=('kubernetes-the-hard-way')"
 > output
 
 ```
-NAME                     REGION    ADDRESS        STATUS
-kubernetes-the-hard-way  us-west1  XX.XXX.XXX.XX  RESERVED
+NAME                     REGION        ADDRESS        STATUS
+kubernetes-the-hard-way  europe-west4  XX.XXX.XX.XXX  RESERVED
 ```
 
 ## Compute Instances
@@ -112,6 +159,17 @@ for i in 0 1 2; do
     --subnet kubernetes \
     --tags kubernetes-the-hard-way,controller
 done
+```
+
+> output
+
+```
+Instance creation in progress for [controller-0]: https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/zones/europe-west4-a/operations/operation-1544464936194-57caec3e3cfd2-9792abb4-a986d2ba
+Use [gcloud compute operations describe URI] command to check the status of the operation(s).
+Instance creation in progress for [controller-1]: https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/zones/europe-west4-a/operations/operation-1544464938626-57caec408ebd3-21a19aaf-7a69a047
+Use [gcloud compute operations describe URI] command to check the status of the operation(s).
+Instance creation in progress for [controller-2]: https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/zones/europe-west4-a/operations/operation-1544464940780-57caec429c9e1-fe79d2fb-cec9bfa5
+Use [gcloud compute operations describe URI] command to check the status of the operation(s).
 ```
 
 ### Kubernetes Workers
@@ -139,6 +197,16 @@ for i in 0 1 2; do
 done
 ```
 
+> output
+
+```
+Instance creation in progress for [worker-0]: https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/zones/europe-west4-a/operations/operation-1544465240597-57caed608a209-15573e88-1939325e
+Use [gcloud compute operations describe URI] command to check the status of the operation(s).
+Instance creation in progress for [worker-1]: https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/zones/europe-west4-a/operations/operation-1544465242748-57caed6297461-bc7f8c11-2d363671
+Use [gcloud compute operations describe URI] command to check the status of the operation(s).
+Instance creation in progress for [worker-2]: https://www.googleapis.com/compute/v1/projects/fiery-surf-225022/zones/europe-west4-a/operations/operation-1544465244816-57caed6490281-ea9f0813-82426fec
+```
+
 ### Verification
 
 List the compute instances in your default compute zone:
@@ -150,13 +218,13 @@ gcloud compute instances list
 > output
 
 ```
-NAME          ZONE        MACHINE_TYPE   PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP     STATUS
-controller-0  us-west1-c  n1-standard-1               10.240.0.10  XX.XXX.XXX.XXX  RUNNING
-controller-1  us-west1-c  n1-standard-1               10.240.0.11  XX.XXX.X.XX     RUNNING
-controller-2  us-west1-c  n1-standard-1               10.240.0.12  XX.XXX.XXX.XX   RUNNING
-worker-0      us-west1-c  n1-standard-1               10.240.0.20  XXX.XXX.XXX.XX  RUNNING
-worker-1      us-west1-c  n1-standard-1               10.240.0.21  XX.XXX.XX.XXX   RUNNING
-worker-2      us-west1-c  n1-standard-1               10.240.0.22  XXX.XXX.XX.XX   RUNNING
+NAME          ZONE            MACHINE_TYPE   PREEMPTIBLE  INTERNAL_IP  EXTERNAL_IP     STATUS
+controller-0  europe-west4-a  n1-standard-1               10.240.0.10  XX.XXX.XXX.XXX  RUNNING
+controller-1  europe-west4-a  n1-standard-1               10.240.0.11  XX.XXX.XXX.XXX  RUNNING
+controller-2  europe-west4-a  n1-standard-1               10.240.0.12  XX.XXX.XXX.XXX  RUNNING
+worker-0      europe-west4-a  n1-standard-1               10.240.0.20  XX.XXX.XXX.XX   RUNNING
+worker-1      europe-west4-a  n1-standard-1               10.240.0.21  XX.XXX.XX.XXX   RUNNING
+worker-2      europe-west4-a  n1-standard-1               10.240.0.22  XX.XXX.XXX.X    RUNNING
 ```
 
 ## Configuring SSH Access
@@ -200,7 +268,7 @@ The key's randomart image is:
 |.+ ==O*B.B = .   |
 | .+.=EB++ o      |
 +----[SHA256]-----+
-Updating project ssh metadata...-Updated [https://www.googleapis.com/compute/v1/projects/$PROJECT_ID].
+Updating project ssh metadata...-Updated [https://www.googleapis.com/compute/v1/projects/fiery-surf-225022].
 Updating project ssh metadata...done.
 Waiting for SSH key to propagate.
 ```
